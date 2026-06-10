@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Werkstatt · Produktionsverwaltung</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f14;--s1:#141720;--s2:#1c2030;--s3:#242838;--border:#2a2f42;
+  --text:#e4e8f0;--muted:#5a6080;--dim:#8890a8;--accent:#3b82f6;
+  --green:#22c55e;--green-dim:rgba(34,197,94,.12);
+  --amber:#f59e0b;--amber-dim:rgba(245,158,11,.12);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.12);
+  --purple:#a855f7;--purple-dim:rgba(168,85,247,.12);
+  --r:6px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px}
+
+/* TOPBAR */
+.topbar{background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;position:sticky;top:0;z-index:200}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.topbar-eyebrow{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px}
+.topbar-title{font-size:15px;font-weight:700}
+.logo-box{width:34px;height:34px;background:var(--accent);border-radius:8px;display:grid;place-items:center;font-size:18px;flex-shrink:0}
+#clock{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+
+/* FILE BAR */
+.filebar{background:var(--s2);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filebar-info{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px;flex:1}
+.file-indicator{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.file-indicator.loaded{background:var(--green)}
+.file-indicator.unsaved{background:var(--amber);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* TABS */
+.tabs{background:var(--s1);border-bottom:1px solid var(--border);display:flex;padding:0 20px;gap:2px;overflow-x:auto}
+.tab{padding:10px 16px;font-size:12px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--dim);white-space:nowrap;transition:color .15s,border-color .15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.page{display:none;padding:20px}
+.page.active{display:block}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.stat{background:var(--s1);padding:14px 16px}
+.stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.stat-val{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+
+/* TOOLBAR */
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.sep{width:1px;height:26px;background:var(--border)}
+input[type=text],input[type=number],input[type=date],select{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:6px 10px;font-size:12px;outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:var(--s2)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:var(--r);border:none;cursor:pointer;font-size:12px;font-weight:500;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--s3);opacity:1}
+.btn-success{background:var(--green);color:#000}
+.btn-warn{background:var(--amber);color:#000}
+.btn-sm{padding:4px 9px;font-size:11px}
+
+/* PILLS */
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.pill{padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:11px;cursor:pointer;transition:all .15s}
+.pill:hover{color:var(--text);border-color:var(--text)}
+.pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--s2);padding:9px 11px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+thead th:hover{color:var(--text)}
+thead th.asc::after{content:' ▲';font-size:8px}
+thead th.desc::after{content:' ▼';font-size:8px}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:hover{background:var(--s2)}
+tbody tr.done-row{opacity:.45}
+td{padding:9px 11px;vertical-align:middle;white-space:nowrap}
+.stripe{width:4px;padding:0!important}
+.stripe-bar{width:4px;height:28px;border-radius:2px;margin:auto}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 7px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap}
+.b-green{background:var(--green-dim);color:var(--green)}
+.b-amber{background:var(--amber-dim);color:var(--amber)}
+.b-red{background:var(--red-dim);color:var(--red)}
+.b-purple{background:var(--purple-dim);color:var(--purple)}
+.b-dim{background:rgba(90,96,128,.12);color:var(--dim)}
+.done-chip{background:var(--purple-dim);color:var(--purple);font-weight:700}
+.qty{font-variant-numeric:tabular-nums;font-weight:500}
+.qty-warn{color:var(--amber)}
+.qty-ok{color:var(--green)}
+
+/* STEP CHIPS */
+.steps-cell{display:flex;gap:3px;flex-wrap:wrap;max-width:420px}
+.step-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all .15s;white-space:nowrap}
+.step-chip:hover{filter:brightness(1.2)}
+.step-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sc-offen{background:rgba(90,96,128,.15);color:var(--dim);border-color:rgba(90,96,128,.25)}
+.sc-arbeit{background:rgba(245,158,11,.15);color:var(--amber);border-color:rgba(245,158,11,.3)}
+.sc-fertig{background:rgba(34,197,94,.15);color:var(--green);border-color:rgba(34,197,94,.3)}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:300;display:none;place-items:center}
+.overlay.open{display:grid}
+.modal{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:26px;width:720px;max-width:96vw;max-height:92vh;overflow-y:auto}
+.modal h2{font-size:16px;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fg-full{grid-column:1/-1}
+.fg label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.fg input,.fg select{width:100%}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}
+.steps-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:5px;margin-top:6px}
+.step-toggle{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:5px;border:1px solid var(--border);background:var(--s2);cursor:pointer;transition:all .15s}
+.step-toggle:hover{border-color:var(--dim)}
+.step-toggle.enabled{border-color:var(--accent);background:rgba(59,130,246,.08)}
+.step-dot-lg{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.step-name{font-size:12px;flex:1}
+.step-type-tag{font-size:9px;padding:1px 5px;border-radius:2px;font-weight:600}
+.ext-tag{background:rgba(239,68,68,.15);color:var(--red)}
+.int-tag{background:rgba(34,197,94,.12);color:var(--green)}
+
+/* DETAIL PANEL */
+.detail-panel{position:fixed;top:0;right:-560px;width:540px;height:100vh;background:var(--s1);border-left:1px solid var(--border);z-index:250;transition:right .25s ease;overflow-y:auto}
+.detail-panel.open{right:0}
+.dp-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--s1);z-index:10}
+.dp-body{padding:20px}
+.dp-section{margin-bottom:22px}
+.dp-section-title{font-size:10px;text-transform:uppercase;letter-spacing:.9px;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.dp-field{margin-bottom:10px}
+.dp-field label{font-size:10px;color:var(--muted);display:block;margin-bottom:2px}
+.dp-field span{font-size:13px;color:var(--text)}
+.proc-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:5px;border:1px solid var(--border);margin-bottom:5px;background:var(--s2)}
+.proc-color{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.proc-name{flex:1;font-size:12px;font-weight:500}
+.proc-status-btns{display:flex;gap:4px}
+.psb{padding:3px 8px;border-radius:3px;border:1px solid var(--border);font-size:10px;font-weight:600;cursor:pointer;background:transparent;color:var(--dim);transition:all .15s}
+.psb:hover{color:var(--text);border-color:var(--text)}
+.psb.ao{background:rgba(90,96,128,.2);color:var(--dim);border-color:var(--dim)}
+.psb.aa{background:var(--amber-dim);color:var(--amber);border-color:var(--amber)}
+.psb.af{background:var(--green-dim);color:var(--green);border-color:var(--green)}
+
+/* IMPORT DROP */
+.drop-zone{border:2px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:all .2s}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--accent);background:rgba(59,130,246,.05)}
+.drop-icon{font-size:38px;margin-bottom:8px}
+.drop-sub{color:var(--muted);font-size:12px}
+.imp-preview{margin-top:14px;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:5px}
+.imp-preview table{margin:0}
+
+/* INFO BOX */
+.infobox{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px;font-size:12px;line-height:1.7}
+.infobox.warn{border-left:3px solid var(--amber)}
+.infobox.ok{border-left:3px solid var(--green)}
+.infobox strong{color:var(--text)}
+
+/* STEPS PAGE */
+.steps-page-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:14px}
+.step-card{background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:10px}
+.sc-left{display:flex;flex-direction:column;gap:3px;flex:1}
+.sc-name{font-size:13px;font-weight:600}
+.sc-code{font-size:10px;color:var(--muted)}
+
+/* TOASTS */
+#toasts{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:6px;z-index:999}
+.toast{background:var(--s3);border:1px solid var(--border);border-radius:7px;padding:10px 14px;font-size:12px;display:flex;align-items:center;gap:8px;animation:tin .2s ease;min-width:220px}
+.toast.ok{border-left:3px solid var(--green)}
+.toast.err{border-left:3px solid var(--red)}
+.toast.inf{border-left:3px solid var(--accent)}
+.toast.warn{border-left:3px solid var(--amber)}
+@keyframes tin{from{transform:translateX(28px);opacity:0}to{transform:none;opacity:1}}
+.empty-state{text-align:center;padding:50px 20px;color:var(--muted)}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+@media(max-width:768px){.stats-row{grid-template-columns:repeat(2,1fr)}.fg{grid-template-columns:1fr}.detail-panel{width:100%;right:-100%}}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-box">⚙️</div>
+    <div>
+      <div class="topbar-eyebrow">Werkstatt · Operations</div>
+      <div class="topbar-title">Produktionsverwaltung</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <span id="clock"></span>
+    <span id="hdr-count" style="font-size:12px;color:var(--dim)"></span>
+  </div>
+</div>
+
+<!-- FILE BAR -->
+<div class="filebar">
+  <div class="filebar-info">
+    <div class="file-indicator" id="fileIndicator"></div>
+    <span id="fileStatusText">Keine Datei geladen — bitte JSON-Datei öffnen oder neu erstellen</span>
+  </div>
+  <button class="btn btn-ghost btn-sm" onclick="newFile()">📄 Neue Datei</button>
+  <button class="btn btn-ghost btn-sm" onclick="openJSONFile()">📂 JSON öffnen</button>
+  <button class="btn btn-primary btn-sm" id="btnSave" onclick="saveJSONFile()" style="display:none">💾 Speichern als JSON</button>
+  <button class="btn btn-warn btn-sm" id="btnSaveUpdate" onclick="saveJSONFile()" style="display:none">💾 Speichern <span id="unsavedDot">●</span></button>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" data-tab="auftraege">📋 Auftragsübersicht</div>
+  <div class="tab" data-tab="artikel">🗂 Artikelstamm</div>
+  <div class="tab" data-tab="prozesse">⚙️ Prozessschritte</div>
+  <div class="tab" data-tab="import">⬆ Import Excel/CSV</div>
+  <div class="tab" data-tab="hilfe">❓ Hilfe</div>
+</div>
+
+<!-- PAGE: AUFTRÄGE -->
+<div class="page active" id="tab-auftraege">
+  <div id="noFileWarning" class="infobox warn">
+    ⚠️ <strong>Keine JSON-Datei geladen.</strong> Klicken Sie oben auf <strong>„Neue Datei"</strong> um zu starten, oder <strong>„JSON öffnen"</strong> um eine bestehende Datei zu laden. Alle Änderungen werden erst durch <strong>„Speichern"</strong> in die Datei geschrieben.
+  </div>
+  <div class="stats-row">
+    <div class="stat"><div class="stat-lbl">Aufträge gesamt</div><div class="stat-val" id="s-total" style="color:var(--accent)">0</div></div>
+    <div class="stat"><div class="stat-lbl">🔴 Offen</div><div class="stat-val" id="s-open" style="color:var(--red)">0</div></div>
+    <div class="stat"><div class="stat-lbl">🟡 Teilgeliefert</div><div class="stat-val" id="s-part" style="color:var(--amber)">0</div></div>
+    <div class="stat"><div class="stat-lbl">🟢 Vollbeliefert</div><div class="stat-val" id="s-full" style="color:var(--green)">0</div></div>
+    <div class="stat"><div class="stat-lbl">✅ Abgeschlossen</div><div class="stat-val" id="s-done" style="color:var(--purple)">0</div></div>
+  </div>
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="openNew()">＋ Neuer Auftrag</button>
+    <button class="btn btn-ghost" onclick="goTab('import')">⬆ Excel / CSV Import</button>
+    <div class="sep"></div>
+    <input type="text" id="search" placeholder="🔍 Suchen…" style="width:200px" oninput="render()">
+    <input type="date" id="dfrom" onchange="render()" title="Von">
+    <span style="color:var(--muted)">–</span>
+    <input type="date" id="dto" onchange="render()" title="Bis">
+    <div class="sep"></div>
+    <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV Export</button>
+  </div>
+  <div class="pills">
+    <button class="pill active" data-f="active" onclick="setF(this)">Aktive Aufträge</button>
+    <button class="pill" data-f="all" onclick="setF(this)">Alle</button>
+    <button class="pill" data-f="open" onclick="setF(this)">🔴 Offen</button>
+    <button class="pill" data-f="partial" onclick="setF(this)">🟡 Teilgeliefert</button>
+    <button class="pill" data-f="full" onclick="setF(this)">🟢 Vollbeliefert</button>
+    <button class="pill" data-f="done" onclick="setF(this)">✅ Abgeschlossen</button>
+    <button class="pill" data-f="inprog" onclick="setF(this)">🔧 In Arbeit</button>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th style="width:4px"></th>
+        <th>Status</th>
+        <th data-col="auftragNr" onclick="sortBy(this)">Auftrags-Nr.</th>
+        <th data-col="pos" onclick="sortBy(this)">Pos</th>
+        <th data-col="belegnummer" onclick="sortBy(this)">Belegnummer</th>
+        <th data-col="kunde" onclick="sortBy(this)">Kunde</th>
+        <th data-col="artikelNr" onclick="sortBy(this)">Artikel-Nr.</th>
+        <th data-col="bezeichnung" onclick="sortBy(this)">Bezeichnung</th>
+        <th data-col="zeichnung" onclick="sortBy(this)">Zeichnung</th>
+        <th data-col="auftragsMenge" onclick="sortBy(this)">Menge</th>
+        <th data-col="lieferMenge" onclick="sortBy(this)">Geliefert</th>
+        <th data-col="lieferDatum" onclick="sortBy(this)">Liefertermin</th>
+        <th data-col="lieferStatus" onclick="sortBy(this)">Lieferstatus</th>
+        <th>Prozessschritte</th>
+        <th>Aktionen</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="empty" class="empty-state" style="display:none">
+      <div style="font-size:42px;margin-bottom:10px">📦</div>
+      <h3 style="color:var(--text);font-size:15px;margin-bottom:5px">Keine Aufträge</h3>
+      <p>Neuen Auftrag anlegen oder Excel/CSV importieren.</p>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: PROZESSE -->
+<div class="page" id="tab-prozesse">
+  <h3 style="margin-bottom:6px;font-size:15px">⚙️ Prozessschritte – Übersicht</h3>
+  <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Alle 20 Prozessschritte. Pro Auftrag aktivierbar und im Detail-Panel steuerbar (Offen / In Arbeit / Fertig).</p>
+  <div class="steps-page-grid" id="stepsPageGrid"></div>
+</div>
+
+<!-- PAGE: IMPORT -->
+<div class="page" id="tab-import">
+  <h3 style="margin-bottom:6px;font-size:15px">⬆ Aufträge aus Excel oder CSV importieren</h3>
+  <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
+    Formate: <strong>.xlsx, .xls, .csv</strong> — Headerzeile erforderlich.<br>
+    Spaltennamen (wie im Excel): <code style="background:var(--s2);padding:2px 6px;border-radius:3px;font-size:11px">AuftragNr · Pos · Belegnummer · Kunde · ArtikelNr · Bezeichnung · Zeichnung · AuftragsMenge · LieferDatum · LieferMenge</code>
+  </p>
+  <div class="drop-zone" id="dropZone"
+    onclick="document.getElementById('fileIn').click()"
+    ondragover="event.preventDefault();this.classList.add('drag')"
+    ondragleave="this.classList.remove('drag')"
+    ondrop="onDrop(event)">
+    <div class="drop-icon">📂</div>
+    <p><strong>Excel oder CSV hier ablegen</strong></p>
+    <p class="drop-sub">oder klicken zum Auswählen (.xlsx, .xls, .csv)</p>
+  </div>
+  <input type="file" id="fileIn" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="onFilePick(this.files[0])">
+  <div id="impPreview"></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:12px;gap:8px">
+    <button class="btn btn-ghost" id="btnClearImp" onclick="clearImp()" style="display:none">Abbrechen</button>
+    <button class="btn btn-success" id="btnImp" onclick="doImport()" style="display:none">✅ <span id="impLbl">0</span> Zeilen importieren</button>
+  </div>
+  <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+    <h4 style="font-size:13px;margin-bottom:10px;color:var(--dim)">📄 Vorlage herunterladen</h4>
+    <button class="btn btn-ghost" onclick="dlTemplate()">⬇ CSV-Vorlage herunterladen</button>
+  </div>
+</div>
+
+<!-- PAGE: HILFE -->
+<div class="page" id="tab-hilfe">
+  <h3 style="margin-bottom:16px;font-size:15px">❓ Wie funktioniert die JSON-Datei?</h3>
+  <div class="infobox ok" style="margin-bottom:12px">
+    <strong>📁 Die Daten werden in einer JSON-Datei gespeichert — nicht im Browser.</strong><br>
+    Sie bestimmen selbst wo die Datei liegt: auf dem Desktop, einem Netzlaufwerk, USB-Stick oder OneDrive.
+  </div>
+  <div style="display:grid;gap:10px;max-width:700px">
+    <div class="infobox">
+      <strong>🆕 Neu starten</strong><br>
+      Klicken Sie auf <strong>„Neue Datei"</strong> → geben Sie einen Namen ein → eine leere JSON-Datei wird erstellt und heruntergeladen. Speichern Sie diese an einem festen Ort (z.B. Netzlaufwerk).
+    </div>
+    <div class="infobox">
+      <strong>📂 Bestehende Datei öffnen</strong><br>
+      Klicken Sie auf <strong>„JSON öffnen"</strong> → wählen Sie Ihre gespeicherte <code>.json</code> Datei aus → alle Aufträge werden geladen.
+    </div>
+    <div class="infobox">
+      <strong>💾 Speichern</strong><br>
+      Nach jeder Änderung erscheint der <strong>orangene Speichern-Button</strong> oben. Klicken → die aktualisierte JSON-Datei wird heruntergeladen → alte Datei ersetzen (gleicher Name, gleicher Ordner).
+    </div>
+    <div class="infobox">
+      <strong>🔗 Mehrere Rechner / Netzlaufwerk</strong><br>
+      Legen Sie die JSON-Datei auf ein Netzlaufwerk das alle Mitarbeiter sehen können. Jeder öffnet die Datei, arbeitet darin, und speichert sie wieder am selben Ort.
+    </div>
+    <div class="infobox warn">
+      <strong>⚠️ Wichtig:</strong> Immer nur eine Person gleichzeitig bearbeiten. Die zuletzt gespeicherte Version gewinnt. Für gleichzeitige Bearbeitung wäre eine Datenbank nötig.
+    </div>
+    <div class="infobox">
+      <strong>📋 JSON-Datei Format (Beispiel):</strong><br>
+      <code style="font-size:11px;color:var(--green)">{ "version": "1.0", "exportedAt": "2024-...", "auftraege": [ { "id": "...", "auftragNr": "AUF-001", ... } ] }</code>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ARTIKEL -->
+<div class="overlay" id="artikelModal">
+  <div class="modal">
+    <h2><span id="amIcon">＋</span> <span id="amTitle">Neuer Artikel</span></h2>
+    <div class="fg">
+      <div><label>Artikel-Nr. *</label><input type="text" id="am-nr" placeholder="ART-100"></div>
+      <div><label>Kurzbezeichnung</label><input type="text" id="am-kurz" placeholder="Kürzel"></div>
+      <div class="fg-full"><label>Bezeichnung *</label><input type="text" id="am-bez" placeholder="Artikelbezeichnung"></div>
+      <div class="fg-full"><label>Zeichnung</label><input type="text" id="am-zeichnung" placeholder="Z445H1002200 (A)"></div>
+      <div><label>Einheit</label><select id="am-einheit"><option>Stk</option><option>m</option><option>kg</option><option>m²</option><option>Set</option><option>Rolle</option><option>Satz</option></select></div>
+      <div><label>Kategorie</label><input type="text" id="am-kat" placeholder="Blech, Drehteil, …"></div>
+      <div><label>Lieferant</label><input type="text" id="am-lief" placeholder="Lieferantenname"></div>
+      <div><label>Lieferzeit (Tage)</label><input type="number" id="am-lzeit" min="0" placeholder="0"></div>
+      <div class="fg-full"><label>Bemerkung</label><input type="text" id="am-bem" placeholder="Optionale Notiz"></div>
+      <div class="fg-full">
+        <label>Standard-Prozessschritte <span style="color:var(--muted);font-weight:400">— Klicken zum Aktivieren / Entfernen</span></label>
+        <div id="artikelStepsToggle"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeArtikelModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveArtikel()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: ARTIKELSTAMM -->
+<div class="page" id="tab-artikel">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+    <div>
+      <h3 style="font-size:15px;margin-bottom:2px">🗂 Artikelstamm</h3>
+      <p style="color:var(--muted);font-size:12px">Artikel mit Standard-Prozessschritten verwalten. Beim Anlegen eines Auftrags werden die Prozessschritte automatisch übernommen.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="openNewArtikel()">＋ Neuer Artikel</button>
+      <button class="btn btn-ghost" onclick="importArtikelExcel()">⬆ Excel Import</button>
+      <button class="btn btn-ghost" onclick="exportArtikelCSV()">⬇ CSV Export</button>
+      <button class="btn btn-ghost btn-sm" onclick="dlArtikelTemplate()">📄 Vorlage</button>
+    </div>
+  </div>
+
+  <div class="toolbar" style="margin-bottom:12px">
+    <input type="text" id="artikelSearch" placeholder="🔍 Artikel suchen…" style="width:220px" oninput="renderArtikel()">
+    <input type="text" id="artikelKatFilter" placeholder="Kategorie filtern…" style="width:160px" oninput="renderArtikel()">
+    <span id="artikelCount" style="font-size:12px;color:var(--muted);margin-left:4px"></span>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th data-col="artikelNr" onclick="sortArtikel(this)">Artikel-Nr.</th>
+        <th data-col="bezeichnung" onclick="sortArtikel(this)">Bezeichnung</th>
+        <th data-col="zeichnung" onclick="sortArtikel(this)">Zeichnung</th>
+        <th data-col="kategorie" onclick="sortArtikel(this)">Kategorie</th>
+        <th data-col="einheit" onclick="sortArtikel(this)">Einheit</th>
+        <th data-col="lieferant" onclick="sortArtikel(this)">Lieferant</th>
+        <th data-col="lieferzeit" onclick="sortArtikel(this)">Lieferzeit</th>
+        <th>Prozessschritte</th>
+        <th>Aktionen</th>
+      </tr></thead>
+      <tbody id="artikelTbody"></tbody>
+    </table>
+    <div id="artikelEmpty" class="empty-state" style="display:none">
+      <div style="font-size:42px;margin-bottom:10px">🗂</div>
+      <h3 style="color:var(--text);font-size:15px;margin-bottom:5px">Kein Artikelstamm vorhanden</h3>
+      <p>Artikel anlegen oder per Excel importieren.</p>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="artikelFileIn" accept=".xlsx,.xls,.csv" style="display:none" onchange="onArtikelFilePick(this.files[0])">
+<div class="overlay" id="orderModal">
+  <div class="modal">
+    <h2><span id="mIcon">＋</span> <span id="mTitle">Neuer Auftrag</span></h2>
+    <div class="fg">
+      <div><label>Pos</label><input type="text" id="f-pos" placeholder="10"></div>
+      <div><label>Belegnummer</label><input type="text" id="f-beleg" placeholder="BEL-2024-001"></div>
+      <div><label>Auftrags-Nr. *</label><input type="text" id="f-nr" placeholder="AUF-2024-001"></div>
+      <div><label>Artikel-Nr. *</label><input type="text" id="f-art" placeholder="ART-100"></div>
+      <div class="fg-full"><label>Bezeichnung *</label><input type="text" id="f-bez" placeholder="Artikelbezeichnung"></div>
+      <div class="fg-full"><label>Zeichnung</label><input type="text" id="f-zeichnung" placeholder="Z445H1002200 (A)"></div>
+      <div><label>Kunde</label><input type="text" id="f-kunde"></div>
+      <div><label>Auftragsdatum</label><input type="date" id="f-dat"></div>
+      <div><label>Liefertermin</label><input type="date" id="f-ldat"></div>
+      <div><label>Auftragsmenge *</label><input type="number" id="f-am" min="0" oninput="calcSt()"></div>
+      <div><label>Liefermenge</label><input type="number" id="f-lm" min="0" oninput="calcSt()"></div>
+      <div><label>Lieferstatus (automatisch)</label><input type="text" id="f-st" readonly></div>
+      <div><label>Abgeschlossen</label><select id="f-done"><option value="0">Nein</option><option value="1">Ja</option></select></div>
+      <div class="fg-full"><label>Bemerkung</label><input type="text" id="f-bem"></div>
+      <div class="fg-full">
+        <label>Prozessschritte <span style="color:var(--muted);font-weight:400">— Klicken zum Aktivieren / Entfernen</span></label>
+        <div id="stepsToggle"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveOrder()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-panel" id="detailPanel">
+  <div class="dp-header">
+    <div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Auftragsdetail</div>
+      <div style="font-size:15px;font-weight:700" id="dp-title">—</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-ghost btn-sm" onclick="editFromPanel()">✏️ Bearbeiten</button>
+      <button class="btn btn-ghost btn-sm" onclick="closePanel()" style="color:var(--muted)">✕</button>
+    </div>
+  </div>
+  <div class="dp-body" id="dp-body"></div>
+</div>
+<div id="panelBg" style="display:none;position:fixed;inset:0;z-index:240;background:rgba(0,0,0,.3)" onclick="closePanel()"></div>
+
+<div id="toasts"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// PROCESS STEPS
+// ═══════════════════════════════════════════
+const STEPS=[
+  {id:'material',   name:'Material',         code:'MAT',color:'#eab308',ext:false},
+  {id:'stanzen',    name:'Stanzen',          code:'ST', color:'#f97316',ext:false},
+  {id:'lasern',     name:'Lasern',           code:'LA', color:'#ef4444',ext:false},
+  {id:'fraesen',    name:'Fräsen',           code:'FR', color:'#a855f7',ext:false},
+  {id:'biegen',     name:'Biegen',           code:'BI', color:'#06b6d4',ext:false},
+  {id:'schweissen', name:'Schweißen',        code:'SW', color:'#eab308',ext:false},
+  {id:'reinigen',   name:'Reinigen',         code:'RE', color:'#6366f1',ext:false},
+  {id:'buersten',   name:'Bürsten',          code:'BU', color:'#84cc16',ext:false},
+  {id:'schleifen',  name:'Schleifen',        code:'SCH',color:'#9ca3af',ext:false},
+  {id:'galvanik',   name:'Galvanik',         code:'GAL',color:'#dc2626',ext:true},
+  {id:'lackierung', name:'Lackierung',       code:'LK', color:'#eab308',ext:false},
+  {id:'pulver',     name:'Pulver',           code:'PU', color:'#ec4899',ext:true},
+  {id:'siebdruck',  name:'Siebdruck',        code:'SB', color:'#f97316',ext:false},
+  {id:'montage',    name:'Montage',          code:'MO', color:'#06b6d4',ext:false},
+  {id:'qs',         name:'QS/Prüfung',       code:'QS', color:'#ef4444',ext:false},
+  {id:'versand',    name:'Versand',          code:'VS', color:'#9ca3af',ext:false},
+  {id:'lasergrav',  name:'Lasergravieren',   code:'LG', color:'#a855f7',ext:false},
+  {id:'gewinde',    name:'Gewindeschneiden', code:'GS', color:'#c084fc',ext:false},
+  {id:'senken',     name:'Senken',           code:'SE', color:'#d946ef',ext:false},
+  {id:'extern',     name:'Externe Fertigung',code:'EX', color:'#f97316',ext:true},
+];
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let orders=[];
+let unsaved=false;
+let currentFileName='auftraege.json';
+let fileLoaded=false;
+let editId=null,curF='active',sortCol='datum',sortDir='desc',impRows=[],activePanelId=null;
+
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+function delSt(am,lm){const a=+am||0,l=+lm||0;if(l===0)return'Offen';if(l>=a)return'Vollbeliefert';return'Teilgeliefert';}
+function procProg(procs){if(!procs||!Object.keys(procs).length)return null;const v=Object.values(procs);return{total:v.length,fertig:v.filter(x=>x==='fertig').length,arbeit:v.filter(x=>x==='arbeit').length};}
+
+// ═══════════════════════════════════════════
+// JSON FILE MANAGEMENT
+// ═══════════════════════════════════════════
+function markUnsaved(){
+  unsaved=true;
+  document.getElementById('btnSave').style.display='none';
+  document.getElementById('btnSaveUpdate').style.display='';
+  document.getElementById('fileIndicator').classList.add('unsaved');
+  document.getElementById('fileIndicator').classList.remove('loaded');
+}
+
+function markSaved(){
+  unsaved=false;
+  document.getElementById('btnSaveUpdate').style.display='none';
+  document.getElementById('btnSave').style.display='none';
+  document.getElementById('fileIndicator').classList.remove('unsaved');
+  document.getElementById('fileIndicator').classList.add('loaded');
+}
+
+function updateFileBar(){
+  const txt=document.getElementById('fileStatusText');
+  const ind=document.getElementById('fileIndicator');
+  if(!fileLoaded){
+    txt.textContent='Keine Datei geladen — bitte JSON öffnen oder neue Datei erstellen';
+    ind.classList.remove('loaded','unsaved');
+    document.getElementById('noFileWarning').style.display='';
+  } else {
+    txt.innerHTML='<strong style="color:var(--text)">'+currentFileName+'</strong>'
+      +(unsaved?' — <span style="color:var(--amber)">● Ungespeicherte Änderungen</span>':' — <span style="color:var(--green)">✓ Gespeichert</span>');
+    document.getElementById('noFileWarning').style.display='none';
+  }
+}
+
+function newFile(){
+  const name=prompt('Dateiname für die neue JSON-Datei:','auftraege_produktion');
+  if(!name) return;
+  currentFileName=(name.endsWith('.json')?name:name+'.json');
+  orders=[];artikel=[];
+  fileLoaded=true;
+  markSaved();
+  updateFileBar();
+  render();
+  // create empty file immediately
+  downloadJSON();
+  toast('Neue Datei erstellt: '+currentFileName,'ok');
+}
+
+function openJSONFile(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='.json';
+  inp.onchange=e=>{
+    const file=e.target.files[0];if(!file) return;
+    currentFileName=file.name;
+    const r=new FileReader();
+    r.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        if(data.auftraege && Array.isArray(data.auftraege)){
+          orders=data.auftraege;
+          artikel=data.artikelstamm&&Array.isArray(data.artikelstamm)?data.artikelstamm:[];
+          fileLoaded=true; markSaved(); updateFileBar(); render(); renderArtikel();
+          toast(orders.length+' Aufträge + '+artikel.length+' Artikel geladen','ok');
+        } else {
+          toast('Ungültiges JSON-Format. Erwartet: { "auftraege": [...] }','err');
+        }
+      } catch(ex){
+        toast('JSON konnte nicht gelesen werden: '+ex.message,'err');
+      }
+    };
+    r.readAsText(file,'UTF-8');
+  };
+  inp.click();
+}
+
+function buildJSON(){
+  return JSON.stringify({
+    version:'1.0',
+    appName:'Werkstatt Produktionsverwaltung',
+    exportedAt:new Date().toISOString(),
+    exportedBy:navigator.userAgent.includes('Windows')?'Windows':'Browser',
+    auftraege:orders,
+    artikelstamm:artikel
+  },null,2);
+}
+
+function downloadJSON(){
+  const blob=new Blob([buildJSON()],{type:'application/json;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=currentFileName;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+function saveJSONFile(){
+  if(!fileLoaded){toast('Bitte zuerst eine Datei öffnen oder neu erstellen','warn');return;}
+  downloadJSON();
+  markSaved();
+  updateFileBar();
+  toast('💾 Gespeichert: '+currentFileName,'ok');
+}
+
+// dirty-mark on any data change
+function dirty(){markUnsaved();updateFileBar();}
+
+// ═══════════════════════════════════════════
+// CLOCK
+// ═══════════════════════════════════════════
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});},1000);
+
+// warn before closing with unsaved changes
+window.addEventListener('beforeunload',e=>{if(unsaved){e.preventDefault();e.returnValue='Es gibt ungespeicherte Änderungen!';}});
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>goTab(t.dataset.tab)));
+function goTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===id));
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='tab-'+id));
+  if(id==='prozesse') renderStepsPage();
+  if(id==='artikel') renderArtikel();
+}
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+function filtered(){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const df=document.getElementById('dfrom').value,dt=document.getElementById('dto').value;
+  return orders.filter(o=>{
+    const txt=[o.auftragNr,o.artikelNr,o.bezeichnung,o.kunde].join(' ').toLowerCase();
+    if(q&&!txt.includes(q)) return false;
+    if(df&&o.datum&&o.datum<df) return false;
+    if(dt&&o.datum&&o.datum>dt) return false;
+    if(curF==='active') return!o.done;
+    if(curF==='open')   return!o.done&&o.lieferStatus==='Offen';
+    if(curF==='partial')return!o.done&&o.lieferStatus==='Teilgeliefert';
+    if(curF==='full')   return!o.done&&o.lieferStatus==='Vollbeliefert';
+    if(curF==='done')   return!!o.done;
+    if(curF==='inprog'){const pp=procProg(o.procs);return pp&&pp.arbeit>0&&!o.done;}
+    return true;
+  }).sort((a,b)=>{
+    let av=a[sortCol]??'',bv=b[sortCol]??'';
+    if(sortCol==='auftragsMenge'||sortCol==='lieferMenge'){av=+av;bv=+bv;}
+    if(av<bv)return sortDir==='asc'?-1:1;if(av>bv)return sortDir==='asc'?1:-1;return 0;
+  });
+}
+
+function render(){
+  const rows=filtered();
+  const tot=orders.length,op=orders.filter(o=>!o.done&&o.lieferStatus==='Offen').length,
+    pa=orders.filter(o=>!o.done&&o.lieferStatus==='Teilgeliefert').length,
+    fu=orders.filter(o=>!o.done&&o.lieferStatus==='Vollbeliefert').length,
+    dn=orders.filter(o=>o.done).length;
+  document.getElementById('s-total').textContent=tot;
+  document.getElementById('s-open').textContent=op;
+  document.getElementById('s-part').textContent=pa;
+  document.getElementById('s-full').textContent=fu;
+  document.getElementById('s-done').textContent=dn;
+  document.getElementById('hdr-count').textContent=rows.length+' Aufträge';
+  const tbody=document.getElementById('tbody');
+  document.getElementById('empty').style.display=rows.length?'none':'';
+  if(!rows.length){tbody.innerHTML='';return;}
+  tbody.innerHTML=rows.map(o=>{
+    const st=o.lieferStatus||'Offen';
+    const sc=st==='Vollbeliefert'?'var(--green)':st==='Teilgeliefert'?'var(--amber)':'var(--red)';
+    const bc=st==='Vollbeliefert'?'b-green':st==='Teilgeliefert'?'b-amber':'b-red';
+    const bi=st==='Vollbeliefert'?'🟢':st==='Teilgeliefert'?'🟡':'🔴';
+    const am=+(o.auftragsMenge||0),lm=+(o.lieferMenge||0);
+    const qc=lm>=am&&am>0?'qty-ok':lm>0?'qty-warn':'';
+    const now=new Date().toISOString().slice(0,10);
+    const late=!o.done&&o.lieferDatum&&o.lieferDatum<now&&st!=='Vollbeliefert';
+    const fd=d=>d?new Date(d+'T00:00:00').toLocaleDateString('de-DE'):'—';
+    let stHtml='<span style="color:var(--muted);font-size:10px">—</span>';
+    if(o.procs&&Object.keys(o.procs).length){
+      const chips=Object.entries(o.procs).map(([sid,sst])=>{
+        const def=STEPS.find(s=>s.id===sid);if(!def)return'';
+        const cls=sst==='fertig'?'sc-fertig':sst==='arbeit'?'sc-arbeit':'sc-offen';
+        const ic=sst==='fertig'?'✓':sst==='arbeit'?'⚡':'○';
+        return'<span class="step-chip '+cls+'" title="'+def.name+': '+sst+'" onclick="event.stopPropagation();cycleStep(\''+o.id+'\',\''+sid+'\')">'
+          +'<span class="step-dot" style="background:'+def.color+'"></span>'+def.code+' '+ic+'</span>';
+      }).join('');
+      const pp=procProg(o.procs);
+      stHtml='<div class="steps-cell">'+chips+'</div>'+(pp?' <span style="font-size:10px;color:var(--muted)">('+pp.fertig+'/'+pp.total+')</span>':'');
+    }
+    return'<tr class="'+(o.done?'done-row':'')+'" onclick="openPanel(\''+o.id+'\')">'
+      +'<td class="stripe"><div class="stripe-bar" style="background:'+(o.done?'var(--purple)':sc)+'"></div></td>'
+      +'<td>'+(o.done?'<span class="badge done-chip">✅ Abgeschlossen</span>':'')+'</td>'
+      +'<td><strong>'+(o.auftragNr||'—')+'</strong></td>'
+      +'<td style="color:var(--dim);text-align:center">'+(o.pos||'—')+'</td>'
+      +'<td style="color:var(--dim)">'+(o.belegnummer||'—')+'</td>'
+      +'<td style="color:var(--dim)">'+(o.kunde||'—')+'</td>'
+      +'<td style="color:var(--dim)">'+(o.artikelNr||'—')+'</td>'
+      +'<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+(o.bezeichnung||'—')+'</td>'
+      +'<td style="color:var(--dim);max-width:140px;overflow:hidden;text-overflow:ellipsis">'+(o.zeichnung||'—')+'</td>'
+      +'<td class="qty">'+am.toLocaleString('de-DE')+'</td>'
+      +'<td class="qty '+qc+'">'+lm.toLocaleString('de-DE')+'</td>'
+      +'<td>'+(late?'<span style="color:var(--red);font-weight:600">⚠ '+fd(o.lieferDatum)+'</span>':fd(o.lieferDatum))+'</td>'
+      +'<td><span class="badge '+bc+'">'+bi+' '+st+'</span></td>'
+      +'<td>'+stHtml+'</td>'
+      +'<td onclick="event.stopPropagation()"><div style="display:flex;gap:3px">'
+      +'<button class="btn btn-ghost btn-sm" onclick="openEdit(\''+o.id+'\')">✏️</button>'
+      +'<button class="btn btn-ghost btn-sm" onclick="toggleDone(\''+o.id+'\')" style="color:var(--purple)">'+(o.done?'↩':'✅')+'</button>'
+      +'<button class="btn btn-ghost btn-sm" onclick="del(\''+o.id+'\')" style="color:var(--red)">🗑</button>'
+      +'</div></td></tr>';
+  }).join('');
+}
+
+function cycleStep(oid,sid){
+  const o=orders.find(x=>x.id===oid);if(!o||!o.procs)return;
+  const cur=o.procs[sid]||'offen';
+  o.procs[sid]=cur==='offen'?'arbeit':cur==='arbeit'?'fertig':'offen';
+  dirty();render();if(activePanelId===oid)renderPanel(oid);
+}
+
+function setF(btn){document.querySelectorAll('.pill').forEach(b=>b.classList.remove('active'));btn.classList.add('active');curF=btn.dataset.f;render();}
+function sortBy(th){const col=th.dataset.col;if(sortCol===col){sortDir=sortDir==='asc'?'desc':'asc';}else{sortCol=col;sortDir='asc';}document.querySelectorAll('thead th').forEach(h=>h.classList.remove('asc','desc'));th.classList.add(sortDir==='asc'?'asc':'desc');render();}
+
+// ═══════════════════════════════════════════
+// ORDER MODAL
+// ═══════════════════════════════════════════
+function buildStepsToggle(ep={}){
+  // ep = existing procs object {stepId: 'offen'|'arbeit'|'fertig'}
+  const c=document.getElementById('stepsToggle');
+  c.innerHTML='<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">'
+    +'<button type="button" class="btn btn-ghost btn-sm" onclick="toggleAllSteps(true)">✅ Alle aktivieren</button>'
+    +'<button type="button" class="btn btn-ghost btn-sm" onclick="toggleAllSteps(false)" style="color:var(--red)">🗑 Alle entfernen</button>'
+    +'<span style="font-size:11px;color:var(--muted);align-self:center;margin-left:4px">Aktivierte Schritte: <strong id="activeStepCount">'+Object.keys(ep).length+'</strong></span>'
+    +'</div>'
+    +'<div class="steps-grid" id="stepsToggleGrid">'
+    +STEPS.map(s=>{
+      const active=ep.hasOwnProperty(s.id);
+      const status=ep[s.id]||'offen';
+      const statusLabel=status==='fertig'?'✓ Fertig':status==='arbeit'?'⚡ In Arbeit':'○ Offen';
+      const statusColor=status==='fertig'?'var(--green)':status==='arbeit'?'var(--amber)':'var(--dim)';
+      return '<div class="step-toggle '+(active?'enabled':'')+'" id="st-'+s.id+'" onclick="toggleST(\''+s.id+'\')" title="Klicken zum '+(active?'Entfernen':'Hinzufügen')+'">'
+        +'<div class="step-dot-lg" style="background:'+s.color+'"></div>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div class="step-name">'+s.name+'</div>'
+        +(active?'<div style="font-size:9px;color:'+statusColor+'">'+statusLabel+'</div>':'<div style="font-size:9px;color:var(--muted)">Nicht aktiv</div>')
+        +'</div>'
+        +'<span class="step-type-tag '+(s.ext?'ext-tag':'int-tag')+'">'+(s.ext?'EXT':'INT')+'</span>'
+        +(active?'<span style="color:var(--red);font-size:14px;line-height:1;margin-left:2px" title="Entfernen">×</span>':'<span style="color:var(--green);font-size:14px;line-height:1;margin-left:2px" title="Hinzufügen">+</span>')
+        +'</div>';
+    }).join('')+'</div>';
+  updateActiveStepCount();
+}
+
+function toggleST(sid){
+  const el=document.getElementById('st-'+sid);
+  el.classList.toggle('enabled');
+  // update visual indicator
+  const active=el.classList.contains('enabled');
+  const plusMinus=el.querySelector('span:last-child');
+  const statusDiv=el.querySelectorAll('div')[2];
+  if(plusMinus){plusMinus.textContent=active?'×':'+';plusMinus.style.color=active?'var(--red)':'var(--green)';}
+  if(statusDiv){statusDiv.textContent=active?'○ Offen':'Nicht aktiv';statusDiv.style.color=active?'var(--dim)':'var(--muted)';}
+  el.title='Klicken zum '+(active?'Entfernen':'Hinzufügen');
+  updateActiveStepCount();
+}
+
+function toggleAllSteps(activate){
+  STEPS.forEach(s=>{
+    const el=document.getElementById('st-'+s.id);if(!el)return;
+    const isActive=el.classList.contains('enabled');
+    if(activate&&!isActive) toggleST(s.id);
+    if(!activate&&isActive) toggleST(s.id);
+  });
+}
+
+function updateActiveStepCount(){
+  const n=STEPS.filter(s=>document.getElementById('st-'+s.id)?.classList.contains('enabled')).length;
+  const el=document.getElementById('activeStepCount');
+  if(el) el.textContent=n;
+}
+
+function getToggleSteps(ep={}){
+  // Only keep steps that are currently toggled ON — deactivated ones are fully removed
+  const p={};
+  STEPS.forEach(s=>{
+    if(document.getElementById('st-'+s.id)?.classList.contains('enabled')){
+      p[s.id]=ep[s.id]||'offen'; // preserve existing status, default new to 'offen'
+    }
+    // if NOT enabled → step is deleted (not included in p)
+  });
+  return p;
+}
+
+function openNew(){
+  if(!fileLoaded){toast('Bitte zuerst eine JSON-Datei öffnen oder neu erstellen','warn');return;}
+  editId=null;document.getElementById('mTitle').textContent='Neuer Auftrag';document.getElementById('mIcon').textContent='＋';
+  clearForm();document.getElementById('f-dat').value=new Date().toISOString().slice(0,10);
+  buildStepsToggle();document.getElementById('orderModal').classList.add('open');
+}
+function openEdit(id){
+  editId=id;const o=orders.find(x=>x.id===id);if(!o)return;
+  document.getElementById('mTitle').textContent='Auftrag bearbeiten';document.getElementById('mIcon').textContent='✏️';
+  document.getElementById('f-pos').value=o.pos||'';document.getElementById('f-beleg').value=o.belegnummer||'';
+  document.getElementById('f-nr').value=o.auftragNr||'';document.getElementById('f-art').value=o.artikelNr||'';
+  document.getElementById('f-bez').value=o.bezeichnung||'';document.getElementById('f-zeichnung').value=o.zeichnung||'';
+  document.getElementById('f-bez').value=o.bezeichnung||'';document.getElementById('f-kunde').value=o.kunde||'';
+  document.getElementById('f-dat').value=o.datum||'';document.getElementById('f-ldat').value=o.lieferDatum||'';
+  document.getElementById('f-am').value=o.auftragsMenge||'';document.getElementById('f-lm').value=o.lieferMenge||'';
+  document.getElementById('f-bem').value=o.bemerkung||'';document.getElementById('f-done').value=o.done?'1':'0';
+  calcSt();buildStepsToggle(o.procs||{});document.getElementById('orderModal').classList.add('open');
+}
+function editFromPanel(){if(activePanelId)openEdit(activePanelId);}
+function clearForm(){['f-pos','f-beleg','f-nr','f-art','f-bez','f-zeichnung','f-kunde','f-dat','f-ldat','f-am','f-lm','f-bem'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-done').value='0';document.getElementById('f-st').value='';}
+function calcSt(){const st=delSt(document.getElementById('f-am').value,document.getElementById('f-lm').value);const el=document.getElementById('f-st');el.value=st;el.style.color=st==='Vollbeliefert'?'var(--green)':st==='Teilgeliefert'?'var(--amber)':'var(--red)';}
+
+function saveOrder(){
+  const nr=document.getElementById('f-nr').value.trim(),art=document.getElementById('f-art').value.trim(),
+    bez=document.getElementById('f-bez').value.trim(),am=document.getElementById('f-am').value;
+  // validate each field individually and highlight
+  const errors=[];
+  const highlight=id=>{const el=document.getElementById(id);if(el){el.style.borderColor='var(--red)';el.addEventListener('input',()=>el.style.borderColor='',{once:true});}};
+  if(!nr){errors.push('Auftrags-Nr.');highlight('f-nr');}
+  if(!art){errors.push('Artikel-Nr.');highlight('f-art');}
+  if(!bez){errors.push('Bezeichnung');highlight('f-bez');}
+  if(am===''){errors.push('Auftragsmenge');highlight('f-am');}
+  if(errors.length){toast('Pflichtfeld fehlt: '+errors.join(', '),'err');return;}
+  const lm=document.getElementById('f-lm').value;
+  const ep=editId?(orders.find(x=>x.id===editId)||{}).procs||{}:{};
+  const obj={id:editId||uid(),auftragNr:nr,pos:document.getElementById('f-pos').value.trim(),belegnummer:document.getElementById('f-beleg').value.trim(),artikelNr:art,bezeichnung:bez,zeichnung:document.getElementById('f-zeichnung').value.trim(),
+    kunde:document.getElementById('f-kunde').value.trim(),datum:document.getElementById('f-dat').value,
+    lieferDatum:document.getElementById('f-ldat').value,auftragsMenge:+am||0,lieferMenge:+lm||0,
+    lieferStatus:delSt(am,lm),bemerkung:document.getElementById('f-bem').value.trim(),
+    done:document.getElementById('f-done').value==='1',procs:getToggleSteps(ep),updatedAt:new Date().toISOString()};
+  if(editId){const i=orders.findIndex(x=>x.id===editId);if(i>-1)orders[i]=obj;}else orders.unshift(obj);
+  dirty();closeModal();render();if(activePanelId===editId)renderPanel(editId);
+  toast(editId?'Auftrag aktualisiert — bitte speichern':'Auftrag angelegt — bitte speichern','warn');
+}
+function closeModal(){document.getElementById('orderModal').classList.remove('open');}
+document.getElementById('orderModal').addEventListener('click',e=>{if(e.target===document.getElementById('orderModal'))closeModal();});
+
+function toggleDone(id){
+  const o=orders.find(x=>x.id===id);if(!o)return;
+  o.done=!o.done;o.updatedAt=new Date().toISOString();
+  dirty();render();if(activePanelId===id)renderPanel(id);
+  toast((o.done?'Abgeschlossen':'Reaktiviert')+' — bitte speichern','warn');
+}
+function del(id){
+  if(!confirm('Auftrag löschen?'))return;
+  orders=orders.filter(x=>x.id!==id);dirty();render();if(activePanelId===id)closePanel();toast('Gelöscht — bitte speichern','warn');
+}
+
+// ═══════════════════════════════════════════
+// DETAIL PANEL
+// ═══════════════════════════════════════════
+function openPanel(id){activePanelId=id;renderPanel(id);document.getElementById('detailPanel').classList.add('open');document.getElementById('panelBg').style.display='';}
+function closePanel(){document.getElementById('detailPanel').classList.remove('open');document.getElementById('panelBg').style.display='none';activePanelId=null;}
+function renderPanel(id){
+  const o=orders.find(x=>x.id===id);if(!o)return;
+  document.getElementById('dp-title').textContent=o.auftragNr||'—';
+  const st=o.lieferStatus||'Offen';
+  const bc=st==='Vollbeliefert'?'b-green':st==='Teilgeliefert'?'b-amber':'b-red';
+  const bi=st==='Vollbeliefert'?'🟢':st==='Teilgeliefert'?'🟡':'🔴';
+  const fd=d=>d?new Date(d+'T00:00:00').toLocaleDateString('de-DE'):'—';
+  let procHtml='';
+  if(!o.procs||!Object.keys(o.procs).length){
+    procHtml='<p style="color:var(--muted);font-size:12px;margin-bottom:10px">Noch keine Prozessschritte — unten hinzufügen oder ✏️ Bearbeiten klicken.</p>'
+      +'<div style="padding-top:10px;border-top:1px solid var(--border)">'
+      +'<div style="font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.7px">Schritt hinzufügen</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:4px">'
+      +STEPS.map(s=>'<button class="psb" onclick="addProcStep(\''+id+'\',\''+s.id+'\')" style="display:inline-flex;align-items:center;gap:4px">'
+        +'<span style="width:7px;height:7px;border-radius:50%;background:'+s.color+';display:inline-block"></span>'+s.name+'</button>').join('')
+      +'</div></div>';
+  } else {
+    const pp=procProg(o.procs);
+    const bar='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+      +'<div style="flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden">'
+      +'<div style="height:100%;width:'+Math.round(pp.fertig/pp.total*100)+'%;background:var(--green);transition:width .3s"></div></div>'
+      +'<span style="font-size:11px;color:var(--muted)">'+pp.fertig+'/'+pp.total+' fertig</span></div>';
+    const rows=Object.entries(o.procs).map(([sid,sst])=>{
+      const def=STEPS.find(s=>s.id===sid);if(!def)return'';
+      return'<div class="proc-row">'
+        +'<div class="proc-color" style="background:'+def.color+'"></div>'
+        +'<span class="proc-name">'+def.name+'</span>'
+        +'<span class="step-type-tag '+(def.ext?'ext-tag':'int-tag')+'">'+(def.ext?'EXT':'INT')+'</span>'
+        +'<div class="proc-status-btns">'
+        +'<button class="psb '+(sst==='offen'?'ao':'')+'" onclick="setProcSt(\''+id+'\',\''+sid+'\',\'offen\')">Offen</button>'
+        +'<button class="psb '+(sst==='arbeit'?'aa':'')+'" onclick="setProcSt(\''+id+'\',\''+sid+'\',\'arbeit\')">In Arbeit</button>'
+        +'<button class="psb '+(sst==='fertig'?'af':'')+'" onclick="setProcSt(\''+id+'\',\''+sid+'\',\'fertig\')">Fertig</button>'
+        +'</div>'
+        +'<button class="psb" onclick="delProcStep(\''+id+'\',\''+sid+'\')" title="Schritt löschen" style="color:var(--red);border-color:transparent;padding:3px 6px">🗑</button>'
+        +'</div>';
+    }).join('');
+    // quick-add section: show steps NOT yet assigned
+    const assigned=Object.keys(o.procs||{});
+    const available=STEPS.filter(s=>!assigned.includes(s.id));
+    const addSection=available.length?
+      '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">'
+      +'<div style="font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.7px">Schritt hinzufügen</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:4px">'
+      +available.map(s=>'<button class="psb" onclick="addProcStep(\''+id+'\',\''+s.id+'\')" style="display:inline-flex;align-items:center;gap:4px">'
+        +'<span style="width:7px;height:7px;border-radius:50%;background:'+s.color+';display:inline-block"></span>'+s.name
+        +'</button>').join('')
+      +'</div></div>'
+      :'<div style="margin-top:8px;font-size:11px;color:var(--green)">✓ Alle Prozessschritte sind zugewiesen</div>';
+
+    procHtml=bar+rows+addSection;
+  }
+  document.getElementById('dp-body').innerHTML=
+    '<div class="dp-section"><div class="dp-section-title">Auftragsdaten</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    +'<div class="dp-field"><label>Pos</label><span>'+(o.pos||'—')+'</span></div>'
+    +'<div class="dp-field"><label>Belegnummer</label><span>'+(o.belegnummer||'—')+'</span></div>'
+    +'<div class="dp-field"><label>Auftrags-Nr.</label><span>'+(o.auftragNr||'—')+'</span></div>'
+    +'<div class="dp-field"><label>Artikel-Nr.</label><span>'+(o.artikelNr||'—')+'</span></div>'
+    +'<div class="dp-field" style="grid-column:1/-1"><label>Bezeichnung</label><span>'+(o.bezeichnung||'—')+'</span></div>'
+    +'<div class="dp-field" style="grid-column:1/-1"><label>Zeichnung</label><span style="color:var(--dim)">'+(o.zeichnung||'—')+'</span></div>'
+    +'<div class="dp-field"><label>Kunde</label><span>'+(o.kunde||'—')+'</span></div>'
+    +'<div class="dp-field"><label>Datum</label><span>'+fd(o.datum)+'</span></div>'
+    +'<div class="dp-field"><label>Liefertermin</label><span>'+fd(o.lieferDatum)+'</span></div>'
+    +'<div class="dp-field"><label>Auftragsmenge</label><span class="qty">'+(+(o.auftragsMenge||0)).toLocaleString('de-DE')+'</span></div>'
+    +'<div class="dp-field"><label>Liefermenge</label><span class="qty">'+(+(o.lieferMenge||0)).toLocaleString('de-DE')+'</span></div>'
+    +'<div class="dp-field"><label>Lieferstatus</label><span class="badge '+bc+'">'+bi+' '+st+'</span></div>'
+    +'<div class="dp-field"><label>Auftragsstatus</label><span>'+(o.done?'<span class="badge done-chip">✅ Abgeschlossen</span>':'<span class="badge b-dim">Aktiv</span>')+'</span></div>'
+    +(o.bemerkung?'<div class="dp-field" style="grid-column:1/-1"><label>Bemerkung</label><span>'+o.bemerkung+'</span></div>':'')
+    +'</div>'
+    +'<div style="display:flex;gap:6px;margin-top:12px">'
+    +'<button class="btn btn-ghost btn-sm" onclick="toggleDone(\''+id+'\')">'+(o.done?'↩ Reaktivieren':'✅ Abschließen')+'</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="del(\''+id+'\')" style="color:var(--red)">🗑 Löschen</button>'
+    +'</div></div>'
+    +'<div class="dp-section"><div class="dp-section-title">Prozessschritte – Status verwalten</div>'+procHtml+'</div>';
+}
+
+function setProcSt(oid,sid,status){
+  const o=orders.find(x=>x.id===oid);if(!o||!o.procs)return;
+  o.procs[sid]=status;dirty();renderPanel(oid);render();
+  toast(STEPS.find(s=>s.id===sid)?.name+': '+(status==='arbeit'?'In Arbeit':status==='fertig'?'Fertig':'Offen'),'ok');
+}
+
+function delProcStep(oid,sid){
+  const o=orders.find(x=>x.id===oid);if(!o||!o.procs)return;
+  const name=STEPS.find(s=>s.id===sid)?.name||sid;
+  delete o.procs[sid];dirty();renderPanel(oid);render();
+  toast(name+' entfernt','ok');
+}
+
+function addProcStep(oid,sid){
+  const o=orders.find(x=>x.id===oid);if(!o)return;
+  if(!o.procs) o.procs={};
+  if(o.procs.hasOwnProperty(sid)){toast('Schritt bereits vorhanden','inf');return;}
+  o.procs[sid]='offen';dirty();renderPanel(oid);render();
+  toast(STEPS.find(s=>s.id===sid)?.name+' hinzugefügt','ok');
+}
+
+// ═══════════════════════════════════════════
+// PROCESS STEPS PAGE
+// ═══════════════════════════════════════════
+function renderStepsPage(){
+  document.getElementById('stepsPageGrid').innerHTML=STEPS.map(s=>
+    '<div class="step-card">'
+    +'<div style="width:12px;height:12px;border-radius:50%;background:'+s.color+';flex-shrink:0"></div>'
+    +'<div class="sc-left"><div class="sc-name">'+s.name+'</div><div class="sc-code">Code: '+s.code+'</div></div>'
+    +'<span class="step-type-tag '+(s.ext?'ext-tag':'int-tag')+'">'+(s.ext?'EXTERN':'INTERN')+'</span></div>').join('');
+}
+
+// ═══════════════════════════════════════════
+// EXCEL / CSV IMPORT
+// ═══════════════════════════════════════════
+function onDrop(e){e.preventDefault();document.getElementById('dropZone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)onFilePick(f);}
+function onFilePick(file){if(!file)return;const ext=file.name.split('.').pop().toLowerCase();if(['xlsx','xls'].includes(ext))readExcel(file);else readCSV(file);}
+function readExcel(file){const r=new FileReader();r.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];processImp(XLSX.utils.sheet_to_json(ws,{defval:''}));};r.readAsArrayBuffer(file);}
+function readCSV(file){const r=new FileReader();r.onload=e=>{const text=e.target.result.replace(/\r/g,'');const lines=text.split('\n').filter(l=>l.trim());if(lines.length<2){toast('Keine Daten','err');return;}const delim=lines[0].includes(';')?';':',';const headers=lines[0].split(delim).map(h=>h.trim());const data=lines.slice(1).map(line=>{const cells=line.split(delim);const row={};headers.forEach((h,i)=>row[h]=(cells[i]||'').trim());return row;});processImp(data);};r.readAsText(file,'UTF-8');}
+
+const CM={
+  auftragNr:    ['auftragnr','auftragsnr','auftrag-nr','auftrags-nr','auftrag nr'],
+  pos:          ['pos','position'],
+  belegnummer:  ['belegnummer','beleg','belegnr','beleg-nr'],
+  kunde:        ['kunde','customer','kundename'],
+  artikelNr:    ['artikelnr','artikel-nr','artikelnummer','artikelid'],
+  bezeichnung:  ['bezeichnung','artikel','name','description','artikelbezeichnung'],
+  zeichnung:    ['zeichnung','drawing','zeichnungsnr','zeichnungs-nr','zeichnung-nr'],
+  auftragsMenge:['auftragsmenge','menge','qty','quantity','bestellmenge'],
+  lieferDatum:  ['lieferdatum','liefertermin','delivery','lieferdatum'],
+  lieferMenge:  ['liefermenge','geliefert','delivered'],
+  datum:        ['datum','auftragsdatum','date'],
+  bemerkung:    ['bemerkung','notiz','note','comment'],
+};
+function mapC(headers,key){const al=CM[key]||[];const hl=headers.map(h=>h.toLowerCase().replace(/[\s\-_]/g,''));for(const a of al){const i=hl.indexOf(a.replace(/[\s\-_]/g,''));if(i>-1)return headers[i];}return null;}
+
+function processImp(data){
+  if(!data.length){toast('Keine Daten','err');return;}
+  const headers=Object.keys(data[0]),map={};Object.keys(CM).forEach(k=>{const c=mapC(headers,k);if(c)map[k]=c;});
+  impRows=data.map(row=>{
+    const g=k=>map[k]?(row[map[k]]||'').toString().trim():'';
+    const am=+g('auftragsMenge')||0,lm=+g('lieferMenge')||0;
+    return{id:uid(),auftragNr:g('auftragNr'),pos:g('pos'),belegnummer:g('belegnummer'),
+      kunde:g('kunde'),artikelNr:g('artikelNr'),bezeichnung:g('bezeichnung'),zeichnung:g('zeichnung'),
+      auftragsMenge:am,lieferMenge:lm,lieferDatum:g('lieferDatum'),
+      lieferStatus:delSt(am,lm),datum:g('datum'),bemerkung:g('bemerkung'),done:false,procs:{},updatedAt:new Date().toISOString()};
+  }).filter(r=>r.auftragNr||r.bezeichnung);
+  const prev=document.getElementById('impPreview');
+  prev.innerHTML='<div class="imp-preview"><table><thead><tr>'
+    +'<th>Auftrags-Nr.</th><th>Pos</th><th>Belegnummer</th><th>Kunde</th>'
+    +'<th>Artikel-Nr.</th><th>Bezeichnung</th><th>Zeichnung</th>'
+    +'<th>Menge</th><th>Geliefert</th><th>Liefertermin</th><th>Status</th>'
+    +'</tr></thead><tbody>'
+    +impRows.slice(0,60).map(r=>{
+      const bc=r.lieferStatus==='Vollbeliefert'?'b-green':r.lieferStatus==='Teilgeliefert'?'b-amber':'b-red';
+      const fd=d=>d?d:'—';
+      return'<tr>'
+        +'<td><strong>'+(r.auftragNr||'—')+'</strong></td>'
+        +'<td style="color:var(--dim)">'+(r.pos||'—')+'</td>'
+        +'<td style="color:var(--dim)">'+(r.belegnummer||'—')+'</td>'
+        +'<td>'+(r.kunde||'—')+'</td>'
+        +'<td style="color:var(--dim)">'+(r.artikelNr||'—')+'</td>'
+        +'<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+(r.bezeichnung||'—')+'</td>'
+        +'<td style="color:var(--dim);max-width:120px;overflow:hidden;text-overflow:ellipsis">'+(r.zeichnung||'—')+'</td>'
+        +'<td class="qty">'+(r.auftragsMenge||0)+'</td>'
+        +'<td class="qty">'+(r.lieferMenge||0)+'</td>'
+        +'<td>'+fd(r.lieferDatum)+'</td>'
+        +'<td><span class="badge '+bc+'">'+r.lieferStatus+'</span></td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div>'
+    +(impRows.length>60?'<p style="color:var(--muted);font-size:11px;margin-top:5px">… und '+(impRows.length-60)+' weitere</p>':'');
+  document.getElementById('impLbl').textContent=impRows.length;
+  document.getElementById('btnImp').style.display='';document.getElementById('btnClearImp').style.display='';
+  toast(impRows.length+' Zeilen erkannt','inf');
+}
+
+function doImport(){
+  if(!fileLoaded){toast('Bitte zuerst eine JSON-Datei öffnen oder neu erstellen','warn');return;}
+  let a=0,u=0;
+  impRows.forEach(r=>{const i=orders.findIndex(x=>x.auftragNr===r.auftragNr&&r.auftragNr);if(i>-1){orders[i]={...orders[i],...r,id:orders[i].id};u++;}else{orders.unshift(r);a++;}});
+  dirty();clearImp();render();goTab('auftraege');
+  toast('Import: '+a+' neu, '+u+' aktualisiert — bitte speichern','warn');
+}
+function clearImp(){impRows=[];document.getElementById('impPreview').innerHTML='';document.getElementById('btnImp').style.display='none';document.getElementById('btnClearImp').style.display='none';document.getElementById('fileIn').value='';}
+function dlTemplate(){const h='AuftragNr;Pos;Belegnummer;Kunde;ArtikelNr;Bezeichnung;Zeichnung;AuftragsMenge;LieferDatum;LieferMenge\n';const ex=['308;51;;HILBERLING;101102;HN802 PEL - Frontplatte Anschlüsse;;11;27.05.26;','417;13;;EAO GmbH, Essen;125971;EDE-00144.1, Version A;-(-);;29.06.26;250'].join('\n');const blob=new Blob(['\uFEFF'+h+ex],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='auftraege_vorlage.csv';a.click();}
+
+function exportCSV(){
+  const rows=filtered();
+  const h='AuftragNr;Pos;Belegnummer;Kunde;ArtikelNr;Bezeichnung;Zeichnung;AuftragsMenge;LieferMenge;LieferDatum;LieferStatus;Abgeschlossen;Bemerkung;Prozessschritte';
+  const lines=rows.map(o=>{const ps=Object.entries(o.procs||{}).map(([k,v])=>{const d=STEPS.find(s=>s.id===k);return d?d.name+':'+v:'';}).filter(Boolean).join('|');return[o.auftragNr,o.pos,o.belegnummer,o.kunde,o.artikelNr,o.bezeichnung,o.zeichnung,o.auftragsMenge,o.lieferMenge,o.lieferDatum,o.lieferStatus,o.done?'Ja':'Nein',o.bemerkung,ps].map(v=>'"'+(v||'').toString().replace(/"/g,'""')+'"').join(';');});
+  const blob=new Blob(['\uFEFF'+h+'\n'+lines.join('\n')],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='auftraege_'+new Date().toISOString().slice(0,10)+'.csv';a.click();toast('CSV exportiert','ok');
+}
+
+function toast(msg,type='inf'){const ic={ok:'✅',err:'❌',inf:'ℹ️',warn:'💾'};const d=document.createElement('div');d.className='toast '+type;d.innerHTML='<span>'+ic[type]+'</span><span>'+msg+'</span>';document.getElementById('toasts').appendChild(d);setTimeout(()=>d.remove(),4000);}
+
+// ═══════════════════════════════════════════
+// ARTIKELSTAMM
+// ═══════════════════════════════════════════
+let artikel = [];
+let artikelEditId = null;
+let artikelSortCol = 'artikelNr';
+let artikelSortDir = 'asc';
+
+function filteredArtikel(){
+  const q=(document.getElementById('artikelSearch')?.value||'').toLowerCase();
+  const kf=(document.getElementById('artikelKatFilter')?.value||'').toLowerCase();
+  return artikel.filter(a=>{
+    const txt=[a.artikelNr,a.bezeichnung,a.zeichnung,a.lieferant,a.kategorie].join(' ').toLowerCase();
+    if(q && !txt.includes(q)) return false;
+    if(kf && !(a.kategorie||'').toLowerCase().includes(kf)) return false;
+    return true;
+  }).sort((a,b)=>{
+    let av=a[artikelSortCol]??'', bv=b[artikelSortCol]??'';
+    if(av<bv) return artikelSortDir==='asc'?-1:1;
+    if(av>bv) return artikelSortDir==='asc'?1:-1;
+    return 0;
+  });
+}
+
+function sortArtikel(th){
+  const col=th.dataset.col;
+  if(artikelSortCol===col){artikelSortDir=artikelSortDir==='asc'?'desc':'asc';}
+  else{artikelSortCol=col;artikelSortDir='asc';}
+  document.querySelectorAll('#tab-artikel thead th').forEach(h=>h.classList.remove('asc','desc'));
+  th.classList.add(artikelSortDir==='asc'?'asc':'desc');
+  renderArtikel();
+}
+
+function renderArtikel(){
+  const rows=filteredArtikel();
+  document.getElementById('artikelCount').textContent=rows.length+' Artikel';
+  const tbody=document.getElementById('artikelTbody');
+  const empty=document.getElementById('artikelEmpty');
+  if(!rows.length){tbody.innerHTML='';empty.style.display='';return;}
+  empty.style.display='none';
+  tbody.innerHTML=rows.map(a=>{
+    const procs=a.procs||{};
+    const pKeys=Object.keys(procs);
+    const stepsHtml=pKeys.length
+      ? '<div style="display:flex;flex-wrap:wrap;gap:3px">'+pKeys.map(sid=>{
+          const def=STEPS.find(s=>s.id===sid);
+          return def?'<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;background:rgba(90,96,128,.15);color:var(--dim)">'
+            +'<span style="width:6px;height:6px;border-radius:50%;background:'+def.color+';flex-shrink:0"></span>'+def.code+'</span>':'';
+        }).join('')+'</div>'
+      : '<span style="color:var(--muted);font-size:10px">—</span>';
+    return '<tr>'
+      +'<td><strong>'+(a.artikelNr||'—')+'</strong>'+(a.kurz?' <span style="color:var(--muted);font-size:10px">['+a.kurz+']</span>':'')+'</td>'
+      +'<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+(a.bezeichnung||'—')+'</td>'
+      +'<td style="color:var(--dim);max-width:130px;overflow:hidden;text-overflow:ellipsis">'+(a.zeichnung||'—')+'</td>'
+      +'<td><span style="background:rgba(59,130,246,.12);color:var(--accent);padding:2px 7px;border-radius:3px;font-size:10px">'+(a.kategorie||'—')+'</span></td>'
+      +'<td style="color:var(--dim)">'+(a.einheit||'Stk')+'</td>'
+      +'<td style="color:var(--dim)">'+(a.lieferant||'—')+'</td>'
+      +'<td style="color:var(--dim);text-align:center">'+(a.lieferzeit?a.lieferzeit+' Tage':'—')+'</td>'
+      +'<td>'+stepsHtml+'</td>'
+      +'<td><div style="display:flex;gap:3px">'
+      +'<button class="btn btn-ghost btn-sm" onclick="openEditArtikel(\''+a.id+'\')" title="Bearbeiten">✏️</button>'
+      +'<button class="btn btn-ghost btn-sm" onclick="useArtikelInOrder(\''+a.id+'\')" title="Auftrag mit diesem Artikel anlegen" style="color:var(--green)">＋ Auftrag</button>'
+      +'<button class="btn btn-ghost btn-sm" onclick="delArtikel(\''+a.id+'\')" title="Löschen" style="color:var(--red)">🗑</button>'
+      +'</div></td>'
+      +'</tr>';
+  }).join('');
+}
+
+function buildArtikelStepsToggle(ep={}){
+  const c=document.getElementById('artikelStepsToggle');
+  c.innerHTML='<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">'
+    +'<button type="button" class="btn btn-ghost btn-sm" onclick="toggleAllArtikelSteps(true)">✅ Alle aktivieren</button>'
+    +'<button type="button" class="btn btn-ghost btn-sm" onclick="toggleAllArtikelSteps(false)" style="color:var(--red)">🗑 Alle entfernen</button>'
+    +'<span style="font-size:11px;color:var(--muted);align-self:center;margin-left:4px">Aktiv: <strong id="aStepCount">'+Object.keys(ep).length+'</strong></span>'
+    +'</div>'
+    +'<div class="steps-grid">'
+    +STEPS.map(s=>{
+      const active=ep.hasOwnProperty(s.id);
+      return '<div class="step-toggle '+(active?'enabled':'')+'" id="ast-'+s.id+'" onclick="toggleAST(\''+s.id+'\')">'
+        +'<div class="step-dot-lg" style="background:'+s.color+'"></div>'
+        +'<div style="flex:1;min-width:0"><div class="step-name">'+s.name+'</div>'
+        +'<div style="font-size:9px;color:var(--muted)">'+(s.ext?'Extern':'Intern')+'</div></div>'
+        +'<span class="step-type-tag '+(s.ext?'ext-tag':'int-tag')+'">'+(s.ext?'EXT':'INT')+'</span>'
+        +(active?'<span style="color:var(--red);font-size:14px;line-height:1;margin-left:2px">×</span>':'<span style="color:var(--green);font-size:14px;line-height:1;margin-left:2px">+</span>')
+        +'</div>';
+    }).join('')+'</div>';
+}
+
+function toggleAST(sid){
+  const el=document.getElementById('ast-'+sid);
+  el.classList.toggle('enabled');
+  const active=el.classList.contains('enabled');
+  const span=el.querySelector('span:last-child');
+  if(span){span.textContent=active?'×':'+';span.style.color=active?'var(--red)':'var(--green)';}
+  const n=STEPS.filter(s=>document.getElementById('ast-'+s.id)?.classList.contains('enabled')).length;
+  const el2=document.getElementById('aStepCount');if(el2)el2.textContent=n;
+}
+
+function toggleAllArtikelSteps(on){
+  STEPS.forEach(s=>{
+    const el=document.getElementById('ast-'+s.id);if(!el)return;
+    if(on&&!el.classList.contains('enabled')) toggleAST(s.id);
+    if(!on&&el.classList.contains('enabled')) toggleAST(s.id);
+  });
+}
+
+function getArtikelToggleSteps(){
+  const p={};
+  STEPS.forEach(s=>{if(document.getElementById('ast-'+s.id)?.classList.contains('enabled')) p[s.id]=true;});
+  return p;
+}
+
+function openNewArtikel(){
+  artikelEditId=null;
+  document.getElementById('amTitle').textContent='Neuer Artikel';
+  document.getElementById('amIcon').textContent='＋';
+  ['am-nr','am-kurz','am-bez','am-zeichnung','am-kat','am-lief','am-lzeit','am-bem'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('am-einheit').value='Stk';
+  buildArtikelStepsToggle();
+  document.getElementById('artikelModal').classList.add('open');
+}
+
+function openEditArtikel(id){
+  artikelEditId=id;
+  const a=artikel.find(x=>x.id===id);if(!a)return;
+  document.getElementById('amTitle').textContent='Artikel bearbeiten';
+  document.getElementById('amIcon').textContent='✏️';
+  document.getElementById('am-nr').value=a.artikelNr||'';
+  document.getElementById('am-kurz').value=a.kurz||'';
+  document.getElementById('am-bez').value=a.bezeichnung||'';
+  document.getElementById('am-zeichnung').value=a.zeichnung||'';
+  document.getElementById('am-kat').value=a.kategorie||'';
+  document.getElementById('am-einheit').value=a.einheit||'Stk';
+  document.getElementById('am-lief').value=a.lieferant||'';
+  document.getElementById('am-lzeit').value=a.lieferzeit||'';
+  document.getElementById('am-bem').value=a.bemerkung||'';
+  buildArtikelStepsToggle(a.procs||{});
+  document.getElementById('artikelModal').classList.add('open');
+}
+
+function saveArtikel(){
+  const nr=document.getElementById('am-nr').value.trim();
+  const bez=document.getElementById('am-bez').value.trim();
+  const errors=[];
+  const highlight=id=>{const el=document.getElementById(id);if(el){el.style.borderColor='var(--red)';el.addEventListener('input',()=>el.style.borderColor='',{once:true});}};
+  if(!nr){errors.push('Artikel-Nr.');highlight('am-nr');}
+  if(!bez){errors.push('Bezeichnung');highlight('am-bez');}
+  if(errors.length){toast('Pflichtfeld fehlt: '+errors.join(', '),'err');return;}
+  const obj={
+    id:artikelEditId||uid(),
+    artikelNr:nr,
+    kurz:document.getElementById('am-kurz').value.trim(),
+    bezeichnung:bez,
+    zeichnung:document.getElementById('am-zeichnung').value.trim(),
+    kategorie:document.getElementById('am-kat').value.trim(),
+    einheit:document.getElementById('am-einheit').value,
+    lieferant:document.getElementById('am-lief').value.trim(),
+    lieferzeit:+document.getElementById('am-lzeit').value||0,
+    bemerkung:document.getElementById('am-bem').value.trim(),
+    procs:getArtikelToggleSteps(),
+    updatedAt:new Date().toISOString()
+  };
+  if(artikelEditId){const i=artikel.findIndex(x=>x.id===artikelEditId);if(i>-1)artikel[i]=obj;}
+  else artikel.unshift(obj);
+  dirty();closeArtikelModal();renderArtikel();
+  toast(artikelEditId?'Artikel aktualisiert':'Artikel angelegt','ok');
+}
+
+function closeArtikelModal(){document.getElementById('artikelModal').classList.remove('open');}
+document.getElementById('artikelModal').addEventListener('click',e=>{if(e.target===document.getElementById('artikelModal'))closeArtikelModal();});
+
+function delArtikel(id){
+  if(!confirm('Artikel löschen?'))return;
+  artikel=artikel.filter(x=>x.id!==id);dirty();renderArtikel();toast('Artikel gelöscht','ok');
+}
+
+// Prefill new order from Artikelstamm
+function useArtikelInOrder(id){
+  const a=artikel.find(x=>x.id===id);if(!a)return;
+  if(!fileLoaded){toast('Bitte zuerst JSON-Datei öffnen','warn');return;}
+  editId=null;
+  document.getElementById('mTitle').textContent='Neuer Auftrag';
+  document.getElementById('mIcon').textContent='＋';
+  ['f-pos','f-beleg','f-nr','f-kunde','f-dat','f-ldat','f-am','f-lm','f-bem'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('f-art').value=a.artikelNr||'';
+  document.getElementById('f-bez').value=a.bezeichnung||'';
+  document.getElementById('f-zeichnung').value=a.zeichnung||'';
+  document.getElementById('f-dat').value=new Date().toISOString().slice(0,10);
+  document.getElementById('f-done').value='0';
+  calcSt();
+  // pre-activate steps from Artikelstamm
+  buildStepsToggle(a.procs||{});
+  document.getElementById('orderModal').classList.add('open');
+  goTab('auftraege');
+  toast('Artikel übernommen — Auftragsdaten ergänzen','inf');
+}
+
+// ─── ARTIKEL EXCEL/CSV IMPORT ───
+function importArtikelExcel(){document.getElementById('artikelFileIn').click();}
+function onArtikelFilePick(file){
+  if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(['xlsx','xls'].includes(ext)){
+    const r=new FileReader();
+    r.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];processArtikelImp(XLSX.utils.sheet_to_json(ws,{defval:''}));};
+    r.readAsArrayBuffer(file);
+  } else {
+    const r=new FileReader();
+    r.onload=e=>{
+      const text=e.target.result.replace(/\r/g,'');
+      const lines=text.split('\n').filter(l=>l.trim());
+      if(lines.length<2){toast('Keine Daten','err');return;}
+      const delim=lines[0].includes(';')?';':',';
+      const headers=lines[0].split(delim).map(h=>h.trim());
+      const data=lines.slice(1).map(line=>{const cells=line.split(delim);const row={};headers.forEach((h,i)=>row[h]=(cells[i]||'').trim());return row;});
+      processArtikelImp(data);
+    };
+    r.readAsText(file,'UTF-8');
+  }
+}
+
+const ACM={
+  artikelNr:   ['artikelnr','artikel-nr','artikelnummer','artikelid'],
+  kurz:        ['kurz','kurzbezeichnung','kürzel','short'],
+  bezeichnung: ['bezeichnung','name','description','artikelbezeichnung'],
+  zeichnung:   ['zeichnung','drawing','zeichnungsnr'],
+  kategorie:   ['kategorie','category','gruppe','typ'],
+  einheit:     ['einheit','unit','me'],
+  lieferant:   ['lieferant','supplier','vendor'],
+  lieferzeit:  ['lieferzeit','leadtime','lead-time','tage'],
+  bemerkung:   ['bemerkung','notiz','note'],
+};
+function mapAC(headers,key){
+  const al=ACM[key]||[];
+  const hl=headers.map(h=>h.toLowerCase().replace(/[\s\-_]/g,''));
+  for(const a of al){const i=hl.indexOf(a.replace(/[\s\-_]/g,''));if(i>-1)return headers[i];}
+  return null;
+}
+
+function processArtikelImp(data){
+  if(!data.length){toast('Keine Daten','err');return;}
+  const headers=Object.keys(data[0]),map={};
+  Object.keys(ACM).forEach(k=>{const c=mapAC(headers,k);if(c)map[k]=c;});
+
+  // detect step columns: any header matching a STEP name or code
+  const stepCols={};
+  headers.forEach(h=>{
+    const hl=h.toLowerCase().replace(/[\s\-_]/g,'');
+    const def=STEPS.find(s=>hl===s.id||hl===s.code.toLowerCase()||hl===s.name.toLowerCase().replace(/[\s\-_]/g,''));
+    if(def) stepCols[h]=def.id;
+  });
+
+  let added=0,updated=0;
+  data.forEach(row=>{
+    const g=k=>map[k]?(row[map[k]]||'').toString().trim():'';
+    const nr=g('artikelNr');if(!nr)return;
+    // build procs from step columns (any truthy value = active)
+    const procs={};
+    Object.entries(stepCols).forEach(([col,sid])=>{
+      const val=(row[col]||'').toString().trim().toLowerCase();
+      if(val&&val!=='0'&&val!=='nein'&&val!=='false') procs[sid]=true;
+    });
+    const obj={id:uid(),artikelNr:nr,kurz:g('kurz'),bezeichnung:g('bezeichnung'),
+      zeichnung:g('zeichnung'),kategorie:g('kategorie'),einheit:g('einheit')||'Stk',
+      lieferant:g('lieferant'),lieferzeit:+g('lieferzeit')||0,
+      bemerkung:g('bemerkung'),procs,updatedAt:new Date().toISOString()};
+    const i=artikel.findIndex(x=>x.artikelNr===nr);
+    if(i>-1){artikel[i]={...artikel[i],...obj,id:artikel[i].id};updated++;}
+    else{artikel.unshift(obj);added++;}
+  });
+  dirty();renderArtikel();
+  toast('Artikel Import: '+added+' neu, '+updated+' aktualisiert','ok');
+  document.getElementById('artikelFileIn').value='';
+}
+
+function exportArtikelCSV(){
+  const rows=filteredArtikel();
+  const stepHeaders=STEPS.map(s=>s.name).join(';');
+  const h='ArtikelNr;Kurz;Bezeichnung;Zeichnung;Kategorie;Einheit;Lieferant;Lieferzeit;Bemerkung;'+stepHeaders;
+  const lines=rows.map(a=>{
+    const base=[a.artikelNr,a.kurz,a.bezeichnung,a.zeichnung,a.kategorie,a.einheit,a.lieferant,a.lieferzeit,a.bemerkung]
+      .map(v=>'"'+(v||'').toString().replace(/"/g,'""')+'"').join(';');
+    const stepVals=STEPS.map(s=>(a.procs||{}).hasOwnProperty(s.id)?'"Ja"':'"Nein"').join(';');
+    return base+';'+stepVals;
+  });
+  const blob=new Blob(['\uFEFF'+h+'\n'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a2=document.createElement('a');a2.href=URL.createObjectURL(blob);
+  a2.download='artikelstamm_'+new Date().toISOString().slice(0,10)+'.csv';a2.click();
+  toast('Artikelstamm exportiert','ok');
+}
+
+function dlArtikelTemplate(){
+  const stepHeaders=STEPS.map(s=>s.name).join(';');
+  const h='ArtikelNr;Kurz;Bezeichnung;Zeichnung;Kategorie;Einheit;Lieferant;Lieferzeit;Bemerkung;'+stepHeaders+'\n';
+  const stepVals=STEPS.map((s,i)=>i<3?'"Ja"':'"Nein"').join(';');
+  const ex='ART-100;GEH-A;Gehäuse Typ A;Z445H1002200 (A);Blech;Stk;Müller GmbH;14;;'+stepVals;
+  const blob=new Blob(['\uFEFF'+h+ex],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='artikelstamm_vorlage.csv';a.click();
+}
+
+// ═══ INIT ═══
+updateFileBar(); render(); renderArtikel();</script>
+</body>
+</html>
